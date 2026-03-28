@@ -21,6 +21,7 @@ class SearchableViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         q = self.request.query_params.get("q")
         if q:
+            # 軽量な部分一致検索でUIの検索ボックスと直結。
             queryset = queryset.filter(name__icontains=q)
         manufacturer_id = self.request.query_params.get("manufacturer_id")
         if manufacturer_id and hasattr(queryset.model, "manufacturer_id"):
@@ -29,7 +30,7 @@ class SearchableViewSet(viewsets.ModelViewSet):
 
 
 class ManufacturerViewSet(SearchableViewSet):
-    queryset = Manufacturer.objects.all().order_by("name")
+    queryset = Manufacturer.objects.all().order_by("name") # order_byはUIでの表示順を安定させるため。DBのID順は削除や追加で変わる可能性がある。 
     serializer_class = ManufacturerSerializer
     permission_classes = [IsAuthenticated]
 
@@ -73,6 +74,7 @@ class FishSpeciesViewSet(SearchableViewSet):
         queryset = super().get_queryset()
         include_pending = self.request.query_params.get("include_pending")
         if include_pending == "1":
+            # 管理/検証用に承認待ちも表示できるようにする。
             queryset = FishSpecies.objects.all().order_by("name")
         return queryset
 
@@ -84,6 +86,7 @@ class FishingLogViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return (
             FishingLog.objects.filter(user=self.request.user)
+            # タックル詳細 + メーカーをまとめて取得してN+1を回避。
             .select_related(
                 "rod",
                 "rod__manufacturer",

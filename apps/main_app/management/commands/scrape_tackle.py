@@ -50,6 +50,7 @@ class Command(BaseCommand):
             if not source.list_url:
                 continue
             if not self._is_allowed_by_robots(source.list_url):
+                # robots.txt で拒否される場合はスキップ（規約遵守）。
                 self.stdout.write(self.style.WARNING(f"SKIP robots: {source.list_url}"))
                 continue
 
@@ -171,6 +172,7 @@ class Command(BaseCommand):
             ("DUO", "https://www.duo-international.com/", ScrapeSource.Category.LURE, "", ""),
         ]
 
+        # seedは一括トランザクションで行い、途中失敗時の中途半端を防ぐ。
         with transaction.atomic():
             for name in manufacturer_seed:
                 Manufacturer.objects.get_or_create(name=name)
@@ -204,6 +206,7 @@ class Command(BaseCommand):
             return False
 
     def _scrape(self, source: ScrapeSource, limit: int = 200) -> list[tuple[str, str]]:
+        # parser種別で処理を切り替える（サイトマップ or 汎用リンク）。
         if source.parser == ScrapeSource.Parser.SITEMAP:
             return self._scrape_sitemap(source.list_url, source, limit)
         return self._scrape_generic_links(source.list_url, source, limit)
@@ -220,6 +223,7 @@ class Command(BaseCommand):
             href = loc.text.strip()
             if not self._is_allowed_link(href, source):
                 continue
+            # URL末尾から仮の製品名を作る（後で手動整備する想定）。
             name = href.rstrip("/").split("/")[-1].replace("-", " ").replace("_", " ").strip()
             if not name:
                 continue
@@ -239,6 +243,7 @@ class Command(BaseCommand):
 
         items = []
         seen = set()
+        # selectorが指定されていれば優先。なければ全リンクから抽出。
         selector = source.link_selector or "a[href]"
         for a in soup.select(selector):
             name = a.get_text(strip=True)
@@ -257,6 +262,7 @@ class Command(BaseCommand):
         return items
 
     def _is_allowed_link(self, href: str, source: ScrapeSource) -> bool:
+        # 正規表現で対象リンクを絞り込み（精度UP用）。
         if source.link_allow_pattern:
             if not re.search(source.link_allow_pattern, href):
                 return False

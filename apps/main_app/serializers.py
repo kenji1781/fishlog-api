@@ -65,6 +65,7 @@ class FishSpeciesSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context.get("request")
         user = request.user if request and request.user.is_authenticated else None
+        # ユーザー追加は承認待ちとして登録。
         return FishSpecies.objects.create(
             name=validated_data["name"],
             is_user_generated=True,
@@ -118,6 +119,7 @@ class FishingLogSerializer(serializers.ModelSerializer):
         read_only_fields = ("created_at", "updated_at")
 
     def validate(self, attrs):
+        # 新規作成時のみ必須チェック。更新時は部分更新を許容。
         if self.instance is None:
             if not attrs.get("date"):
                 raise serializers.ValidationError({"date": "日付は必須です。"})
@@ -134,6 +136,7 @@ class FishingLogSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         fish_species = validated_data.pop("fish_species", [])
         user = self.context["request"].user
+        # 先にログを作り、M2M を後からセットする。
         log = FishingLog.objects.create(user=user, **validated_data)
         log.fish_species.set(fish_species)
         return log
